@@ -153,6 +153,50 @@ export const schemas = {
         example: "Inauguration Session",
       },
 
+      hallId: {
+        oneOf: [
+          {
+            type: "string",
+            example: "672b12345678901234567890",
+          },
+          {
+            type: "object",
+            properties: {
+              _id: {
+                type: "string",
+                example: "672b12345678901234567890",
+              },
+              hallName: {
+                type: "string",
+                example: "Main Auditorium",
+              },
+            },
+          },
+        ],
+      },
+
+      trackId: {
+        oneOf: [
+          {
+            type: "string",
+            example: "672b12345678901234567891",
+          },
+          {
+            type: "object",
+            properties: {
+              _id: {
+                type: "string",
+                example: "672b12345678901234567891",
+              },
+              trackName: {
+                type: "string",
+                example: "General Medicine",
+              },
+            },
+          },
+        ],
+      },
+
       sessionDate: {
         type: "string",
         format: "date-time",
@@ -188,6 +232,229 @@ export const schemas = {
               example: "asif@example.com",
             },
           },
+        },
+      },
+
+      createdAt: {
+        type: "string",
+        format: "date-time",
+        example: "2026-11-11T10:00:00.000Z",
+      },
+
+      updatedAt: {
+        type: "string",
+        format: "date-time",
+        example: "2026-11-11T10:00:00.000Z",
+      },
+    },
+  },
+
+  // ==========================================
+  // TOPIC SCHEMA
+  // ==========================================
+
+  Topic: {
+    type: "object",
+    properties: {
+      _id: {
+        type: "string",
+        example: "672b12345678901234567894",
+      },
+
+      sessionId: {
+        oneOf: [
+          {
+            type: "string",
+            example: "672b12345678901234567893",
+          },
+          {
+            type: "object",
+            properties: {
+              _id: {
+                type: "string",
+                example: "672b12345678901234567893",
+              },
+              sessionName: {
+                type: "string",
+                example: "Inauguration Session",
+              },
+              sessionDate: {
+                type: "string",
+                format: "date-time",
+                example: "2026-11-12T04:30:00.000Z",
+              },
+              startTime: {
+                type: "string",
+                example: "10:00 AM",
+              },
+              endTime: {
+                type: "string",
+                example: "11:00 AM",
+              },
+              chairperson: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    _id: {
+                      type: "string",
+                      example: "672b12345678901234567892",
+                    },
+                    fullName: {
+                      type: "string",
+                      example: "Dr. Asif Jamal",
+                    },
+                    email: {
+                      type: "string",
+                      format: "email",
+                      example: "asif@example.com",
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+
+      topicName: {
+        type: "string",
+        example: "Recent Advances in Pediatrics",
+      },
+
+      startTime: {
+        type: "string",
+        example: "10:30 AM",
+      },
+
+      endTime: {
+        type: "string",
+        example: "11:00 AM",
+      },
+
+      topicType: {
+        type: "string",
+        enum: ["Talk", "Debate", "Panel Discussion"],
+        example: "Talk",
+      },
+
+      facultyId: {
+        type: "array",
+        items: {
+          oneOf: [
+            {
+              type: "string",
+              example: "672b12345678901234567892",
+            },
+            {
+              type: "object",
+              properties: {
+                _id: {
+                  type: "string",
+                  example: "672b12345678901234567892",
+                },
+                fullName: {
+                  type: "string",
+                  example: "Dr. Asif Jamal",
+                },
+                email: {
+                  type: "string",
+                  format: "email",
+                  example: "asif@example.com",
+                },
+              },
+            },
+          ],
+        },
+      },
+
+      moderatorId: {
+        type: "array",
+        items: {
+          oneOf: [
+            {
+              type: "string",
+              example: "672b12345678901234567892",
+            },
+            {
+              type: "object",
+              properties: {
+                _id: {
+                  type: "string",
+                  example: "672b12345678901234567892",
+                },
+                fullName: {
+                  type: "string",
+                  example: "Dr. Asif Jamal",
+                },
+                email: {
+                  type: "string",
+                  format: "email",
+                  example: "asif@example.com",
+                },
+              },
+            },
+          ],
+        },
+      },
+
+      panelistId: {
+        type: "array",
+        items: {
+          oneOf: [
+            {
+              type: "string",
+              example: "672b12345678901234567892",
+            },
+            {
+              type: "object",
+              properties: {
+                _id: {
+                  type: "string",
+                  example: "672b12345678901234567892",
+                },
+                fullName: {
+                  type: "string",
+                  example: "Dr. Asif Jamal",
+                },
+                email: {
+                  type: "string",
+                  format: "email",
+                  example: "asif@example.com",
+                },
+              },
+            },
+          ],
+        },
+      },
+
+      expertPanelistId: {
+        type: "array",
+        items: {
+          oneOf: [
+            {
+              type: "string",
+              example: "672b12345678901234567892",
+            },
+            {
+              type: "object",
+              properties: {
+                _id: {
+                  type: "string",
+                  example: "672b12345678901234567892",
+                },
+                fullName: {
+                  type: "string",
+                  example: "Dr. Asif Jamal",
+                },
+                email: {
+                  type: "string",
+                  format: "email",
+                  example: "asif@example.com",
+                },
+              },
+            },
+          ],
         },
       },
 

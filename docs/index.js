@@ -4,6 +4,8 @@ import hallPaths from "./hall.swagger.js";
 import trackPaths from "./track.swagger.js";
 import facultyPaths from "./faculty.swagger.js";
 import sessionPaths from "./session.swagger.js";
+import topicPaths from "./topic.swagger.js";
+import publicPaths from "./public.swagger.js";
 
 const paths = {
   ...authPaths,
@@ -11,8 +13,8 @@ const paths = {
   ...trackPaths,
   ...facultyPaths,
   ...sessionPaths,
-
-  // Add future module paths here.
+  ...topicPaths,
+  ...publicPaths,
 };
 
 export default paths;

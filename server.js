@@ -14,6 +14,8 @@ import hallRoutes from "./routes/hallRoutes.js";
 import trackRoutes from "./routes/trackRoutes.js";
 import facultyRoutes from "./routes/facultyRoutes.js";
 import sessionRoutes from "./routes/sessionRoutes.js";
+import topicRoutes from "./routes/topicRoutes.js";
+import publicRoutes from "./routes/publicRoutes.js";
 
 import errorHandler from "./middlewares/errorHandler.js";
 
@@ -148,6 +150,8 @@ app.use("/api/halls", hallRoutes);
 app.use("/api/tracks", trackRoutes);
 app.use("/api/faculties", facultyRoutes);
 app.use("/api/sessions", sessionRoutes);
+app.use("/api/topics", topicRoutes);
+app.use("/api/public", publicRoutes);
 
 // ==========================================
 // 404 ROUTE

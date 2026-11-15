@@ -1,15 +1,13 @@
-
 import mongoose from "mongoose";
 
 import Session from "../models/Session.js";
 import Faculty from "../models/Faculty.js";
+import Hall from "../models/Hall.js";
+import Track from "../models/Track.js";
 
 import asyncHandler from "../utils/asyncHandler.js";
 
-import {
-  successResponse,
-  errorResponse,
-} from "../utils/response.js";
+import { successResponse, errorResponse } from "../utils/response.js";
 
 import {
   getCache,
@@ -17,10 +15,7 @@ import {
   deleteCacheByPattern,
 } from "../utils/redisCache.js";
 
-import {
-  getPagination,
-  buildPaginationMeta,
-} from "../utils/pagination.js";
+import { getPagination, buildPaginationMeta } from "../utils/pagination.js";
 
 import buildSearchQuery from "../utils/search.js";
 import buildSortQuery from "../utils/sort.js";
@@ -29,20 +24,14 @@ import buildSortQuery from "../utils/sort.js";
 // COMMON HELPERS
 // ==========================================
 
-// Validate MongoDB ObjectId
 const isValidId = (id) => mongoose.isValidObjectId(id);
 
-// Invalidate Session Cache
 const invalidateSessionCache = async () => {
   await deleteCacheByPattern("sessions:*");
 };
 
 // Allowed Search Fields
-const ALLOWED_SEARCH_FIELDS = [
-  "sessionName",
-  "startTime",
-  "endTime",
-];
+const ALLOWED_SEARCH_FIELDS = ["sessionName", "startTime", "endTime"];
 
 // Allowed Sort Fields
 const ALLOWED_SORT_FIELDS = [
@@ -54,11 +43,30 @@ const ALLOWED_SORT_FIELDS = [
   "updatedAt",
 ];
 
-// Faculty Population
+// Populate Chairperson
 const populateChairperson = {
   path: "chairperson",
   select: "fullName email",
 };
+
+// Populate Hall - only hallName
+const populateHall = {
+  path: "hallId",
+  select: "hallName",
+};
+
+// Populate Track - only trackName
+const populateTrack = {
+  path: "trackId",
+  select: "trackName",
+};
+
+// All population fields used by Session GET APIs
+const populateSessionFields = [
+  populateHall,
+  populateTrack,
+  populateChairperson,
+];
 
 // Validate Session Name
 const isValidSessionName = (sessionName) => {
@@ -86,12 +94,73 @@ const isValidTime = (time) => {
   );
 };
 
+// Validate Hall ID and Check Hall Exists
+
+const validateHall = async (hallId) => {
+  if (!hallId || !isValidId(hallId)) {
+    return {
+      valid: false,
+      message: "Please provide a valid Hall ID.",
+    };
+  }
+
+  const hall = await Hall.findById(hallId).select("_id status").lean();
+
+  if (!hall) {
+    return {
+      valid: false,
+      message: "Hall not found.",
+    };
+  }
+
+  if (hall.status !== "Active") {
+    return {
+      valid: false,
+      message: "Selected Hall is inactive. Please select an active Hall.",
+    };
+  }
+
+  return {
+    valid: true,
+    data: hall._id,
+  };
+};
+
+// Validate Track ID and Check Track Exists
+
+const validateTrack = async (trackId) => {
+  if (!trackId || !isValidId(trackId)) {
+    return {
+      valid: false,
+      message: "Please provide a valid Track ID.",
+    };
+  }
+
+  const track = await Track.findById(trackId).select("_id status").lean();
+
+  if (!track) {
+    return {
+      valid: false,
+      message: "Track not found.",
+    };
+  }
+
+  if (track.status !== "Active") {
+    return {
+      valid: false,
+      message: "Selected Track is inactive. Please select an active Track.",
+    };
+  }
+
+  return {
+    valid: true,
+    data: track._id,
+  };
+};
+
 // Validate Chairperson Array and Faculty Records
 const validateChairpersons = async (chairperson) => {
-  if (
-    !Array.isArray(chairperson) ||
-    chairperson.length === 0
-  ) {
+  if (!Array.isArray(chairperson) || chairperson.length === 0) {
     return {
       valid: false,
       message: "At least one chairperson is required.",
@@ -134,6 +203,8 @@ const validateChairpersons = async (chairperson) => {
 export const createSession = asyncHandler(async (req, res) => {
   const {
     sessionName,
+    hallId,
+    trackId,
     sessionDate,
     startTime,
     endTime,
@@ -145,6 +216,26 @@ export const createSession = asyncHandler(async (req, res) => {
     return errorResponse(res, {
       statusCode: 400,
       message: "Session name must be between 2 and 100 characters.",
+    });
+  }
+
+  // Validate Hall
+  const hallValidation = await validateHall(hallId);
+
+  if (!hallValidation.valid) {
+    return errorResponse(res, {
+      statusCode: 400,
+      message: hallValidation.message,
+    });
+  }
+
+  // Validate Track
+  const trackValidation = await validateTrack(trackId);
+
+  if (!trackValidation.valid) {
+    return errorResponse(res, {
+      statusCode: 400,
+      message: trackValidation.message,
     });
   }
 
@@ -173,8 +264,7 @@ export const createSession = asyncHandler(async (req, res) => {
   }
 
   // Validate Chairpersons
-  const chairpersonValidation =
-    await validateChairpersons(chairperson);
+  const chairpersonValidation = await validateChairpersons(chairperson);
 
   if (!chairpersonValidation.valid) {
     return errorResponse(res, {
@@ -186,6 +276,8 @@ export const createSession = asyncHandler(async (req, res) => {
   // Create Session
   const session = await Session.create({
     sessionName: sessionName.trim(),
+    hallId: hallValidation.data,
+    trackId: trackValidation.data,
     sessionDate: new Date(sessionDate),
     startTime: startTime.trim().toUpperCase(),
     endTime: endTime.trim().toUpperCase(),
@@ -208,35 +300,22 @@ export const createSession = asyncHandler(async (req, res) => {
 // ==========================================
 
 export const getAllSessions = asyncHandler(async (req, res) => {
-  // Pagination Utility
   const { page, limit, skip } = getPagination(req);
 
-  // Search Utility
-  const searchQuery = buildSearchQuery(
-    req,
-    ALLOWED_SEARCH_FIELDS
-  );
+  const searchQuery = buildSearchQuery(req, ALLOWED_SEARCH_FIELDS);
 
-  // Sort Utility
-  const sortQuery = buildSortQuery(
-    req,
-    ALLOWED_SORT_FIELDS,
-    "sessionDate"
-  );
+  const sortQuery = buildSortQuery(req, ALLOWED_SORT_FIELDS, "sessionDate");
 
-  // Filter Query
   const filterQuery = {
     ...searchQuery,
   };
 
-  // Redis Cache Key
   const cacheKey = `sessions:all:${JSON.stringify({
     query: req.query,
     page,
     limit,
   })}`;
 
-  // Check Cache
   const cachedData = await getCache(cacheKey);
 
   if (cachedData) {
@@ -248,10 +327,9 @@ export const getAllSessions = asyncHandler(async (req, res) => {
     });
   }
 
-  // Fetch Sessions and Total Count
   const [sessions, total] = await Promise.all([
     Session.find(filterQuery)
-      .populate(populateChairperson)
+      .populate(populateSessionFields)
       .sort(sortQuery)
       .skip(skip)
       .limit(limit)
@@ -260,21 +338,11 @@ export const getAllSessions = asyncHandler(async (req, res) => {
     Session.countDocuments(filterQuery),
   ]);
 
-  // Pagination Metadata
-  const pagination = buildPaginationMeta(
-    total,
-    page,
-    limit
-  );
+  const pagination = buildPaginationMeta(total, page, limit);
 
   const data = { sessions };
 
-  // Store in Redis
-  await setCache(
-    cacheKey,
-    { data, pagination },
-    3600
-  );
+  await setCache(cacheKey, { data, pagination }, 3600);
 
   return successResponse(res, {
     statusCode: 200,
@@ -289,32 +357,20 @@ export const getAllSessions = asyncHandler(async (req, res) => {
 // GET /api/sessions/all
 // ==========================================
 
-export const getAllSessionsWithoutPagination =
-  asyncHandler(async (req, res) => {
-    // Search Utility
-    const searchQuery = buildSearchQuery(
-      req,
-      ALLOWED_SEARCH_FIELDS
-    );
+export const getAllSessionsWithoutPagination = asyncHandler(
+  async (req, res) => {
+    const searchQuery = buildSearchQuery(req, ALLOWED_SEARCH_FIELDS);
 
-    // Sort Utility
-    const sortQuery = buildSortQuery(
-      req,
-      ALLOWED_SORT_FIELDS,
-      "sessionDate"
-    );
+    const sortQuery = buildSortQuery(req, ALLOWED_SORT_FIELDS, "sessionDate");
 
-    // Filter Query
     const filterQuery = {
       ...searchQuery,
     };
 
-    // Redis Cache Key
     const cacheKey = `sessions:all:without-pagination:${JSON.stringify(
-      req.query
+      req.query,
     )}`;
 
-    // Check Cache
     const cachedData = await getCache(cacheKey);
 
     if (cachedData) {
@@ -325,15 +381,13 @@ export const getAllSessionsWithoutPagination =
       });
     }
 
-    // Fetch All Sessions
     const sessions = await Session.find(filterQuery)
-      .populate(populateChairperson)
+      .populate(populateSessionFields)
       .sort(sortQuery)
       .lean();
 
     const data = { sessions };
 
-    // Store in Redis
     await setCache(cacheKey, data, 3600);
 
     return successResponse(res, {
@@ -341,7 +395,8 @@ export const getAllSessionsWithoutPagination =
       message: "Sessions fetched successfully.",
       data,
     });
-  });
+  },
+);
 
 // ==========================================
 // GET SESSION BY ID
@@ -351,7 +406,6 @@ export const getAllSessionsWithoutPagination =
 export const getSessionById = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  // Validate ID
   if (!isValidId(id)) {
     return errorResponse(res, {
       statusCode: 400,
@@ -359,10 +413,8 @@ export const getSessionById = asyncHandler(async (req, res) => {
     });
   }
 
-  // Redis Cache Key
   const cacheKey = `sessions:single:${id}`;
 
-  // Check Cache
   const cachedData = await getCache(cacheKey);
 
   if (cachedData) {
@@ -373,9 +425,8 @@ export const getSessionById = asyncHandler(async (req, res) => {
     });
   }
 
-  // Find Session and Populate Chairpersons
   const session = await Session.findById(id)
-    .populate(populateChairperson)
+    .populate(populateSessionFields)
     .lean();
 
   if (!session) {
@@ -387,7 +438,6 @@ export const getSessionById = asyncHandler(async (req, res) => {
 
   const data = { session };
 
-  // Store in Redis
   await setCache(cacheKey, data, 3600);
 
   return successResponse(res, {
@@ -407,13 +457,14 @@ export const updateSession = asyncHandler(async (req, res) => {
 
   const {
     sessionName,
+    hallId,
+    trackId,
     sessionDate,
     startTime,
     endTime,
     chairperson,
   } = req.body;
 
-  // Validate ID
   if (!isValidId(id)) {
     return errorResponse(res, {
       statusCode: 400,
@@ -433,6 +484,34 @@ export const updateSession = asyncHandler(async (req, res) => {
     }
 
     updateData.sessionName = sessionName.trim();
+  }
+
+  // Validate Hall
+  if (hallId !== undefined) {
+    const hallValidation = await validateHall(hallId);
+
+    if (!hallValidation.valid) {
+      return errorResponse(res, {
+        statusCode: 400,
+        message: hallValidation.message,
+      });
+    }
+
+    updateData.hallId = hallValidation.data;
+  }
+
+  // Validate Track
+  if (trackId !== undefined) {
+    const trackValidation = await validateTrack(trackId);
+
+    if (!trackValidation.valid) {
+      return errorResponse(res, {
+        statusCode: 400,
+        message: trackValidation.message,
+      });
+    }
+
+    updateData.trackId = trackValidation.data;
   }
 
   // Validate Session Date
@@ -473,8 +552,7 @@ export const updateSession = asyncHandler(async (req, res) => {
 
   // Validate Chairpersons
   if (chairperson !== undefined) {
-    const chairpersonValidation =
-      await validateChairpersons(chairperson);
+    const chairpersonValidation = await validateChairpersons(chairperson);
 
     if (!chairpersonValidation.valid) {
       return errorResponse(res, {
@@ -486,7 +564,6 @@ export const updateSession = asyncHandler(async (req, res) => {
     updateData.chairperson = chairpersonValidation.data;
   }
 
-  // Check Empty Update
   if (Object.keys(updateData).length === 0) {
     return errorResponse(res, {
       statusCode: 400,
@@ -494,14 +571,13 @@ export const updateSession = asyncHandler(async (req, res) => {
     });
   }
 
-  // Update Session
   const session = await Session.findByIdAndUpdate(
     id,
     { $set: updateData },
     {
       new: true,
       runValidators: true,
-    }
+    },
   );
 
   if (!session) {
@@ -511,7 +587,6 @@ export const updateSession = asyncHandler(async (req, res) => {
     });
   }
 
-  // Invalidate Cache
   await invalidateSessionCache();
 
   return successResponse(res, {
@@ -529,7 +604,6 @@ export const updateSession = asyncHandler(async (req, res) => {
 export const deleteSession = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  // Validate ID
   if (!isValidId(id)) {
     return errorResponse(res, {
       statusCode: 400,
@@ -537,7 +611,6 @@ export const deleteSession = asyncHandler(async (req, res) => {
     });
   }
 
-  // Delete Session
   const session = await Session.findByIdAndDelete(id);
 
   if (!session) {
@@ -547,7 +620,6 @@ export const deleteSession = asyncHandler(async (req, res) => {
     });
   }
 
-  // Invalidate Cache
   await invalidateSessionCache();
 
   return successResponse(res, {
