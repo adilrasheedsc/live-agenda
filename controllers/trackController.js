@@ -10,12 +10,6 @@ import {
   errorResponse,
 } from "../utils/response.js";
 
-import {
-  getCache,
-  setCache,
-  deleteCacheByPattern,
-} from "../utils/redisCache.js";
-
 import buildFiltersQuery from "../utils/filters.js";
 
 import {
@@ -31,10 +25,6 @@ import buildSortQuery from "../utils/sort.js";
 // ==========================================
 
 const isValidId = (id) => mongoose.isValidObjectId(id);
-
-const invalidateTrackCache = async () => {
-  await deleteCacheByPattern("tracks:*");
-};
 
 // Allowed Fields
 const ALLOWED_FILTER_FIELDS = ["status"];
@@ -94,9 +84,6 @@ export const createTrack = asyncHandler(async (req, res) => {
     ...(status !== undefined && { status }),
   });
 
-  // Invalidate Cache
-  await invalidateTrackCache();
-
   return successResponse(res, {
     statusCode: 201,
     message: "Track created successfully.",
@@ -138,25 +125,6 @@ export const getAllTracks = asyncHandler(async (req, res) => {
     ...searchQuery,
   };
 
-  // Redis Cache Key
-  const cacheKey = `tracks:all:${JSON.stringify({
-    query: req.query,
-    page,
-    limit,
-  })}`;
-
-  // Check Cache
-  const cachedData = await getCache(cacheKey);
-
-  if (cachedData) {
-    return successResponse(res, {
-      statusCode: 200,
-      message: "Tracks fetched successfully.",
-      data: cachedData.data,
-      pagination: cachedData.pagination,
-    });
-  }
-
   // Fetch Tracks and Total Count
   const [tracks, total] = await Promise.all([
     Track.find(filterQuery)
@@ -176,13 +144,6 @@ export const getAllTracks = asyncHandler(async (req, res) => {
   );
 
   const data = { tracks };
-
-  // Store in Redis
-  await setCache(
-    cacheKey,
-    { data, pagination },
-    3600
-  );
 
   return successResponse(res, {
     statusCode: 200,
@@ -220,25 +181,6 @@ export const getActiveTracks = asyncHandler(async (req, res) => {
     ...searchQuery,
   };
 
-  // Redis Cache Key
-  const cacheKey = `tracks:active:${JSON.stringify({
-    query: req.query,
-    page,
-    limit,
-  })}`;
-
-  // Check Cache
-  const cachedData = await getCache(cacheKey);
-
-  if (cachedData) {
-    return successResponse(res, {
-      statusCode: 200,
-      message: "Active tracks fetched successfully.",
-      data: cachedData.data,
-      pagination: cachedData.pagination,
-    });
-  }
-
   // Fetch Active Tracks and Total Count
   const [tracks, total] = await Promise.all([
     Track.find(filterQuery)
@@ -258,13 +200,6 @@ export const getActiveTracks = asyncHandler(async (req, res) => {
   );
 
   const data = { tracks };
-
-  // Store in Redis
-  await setCache(
-    cacheKey,
-    { data, pagination },
-    3600
-  );
 
   return successResponse(res, {
     statusCode: 200,
@@ -300,31 +235,12 @@ export const getAllActiveTracksWithoutPagination =
       ...searchQuery,
     };
 
-    // Redis Cache Key
-    const cacheKey = `tracks:active:all:${JSON.stringify(
-      req.query
-    )}`;
-
-    // Check Cache
-    const cachedData = await getCache(cacheKey);
-
-    if (cachedData) {
-      return successResponse(res, {
-        statusCode: 200,
-        message: "Active tracks fetched successfully.",
-        data: cachedData,
-      });
-    }
-
     // Fetch All Active Tracks
     const tracks = await Track.find(filterQuery)
       .sort(sortQuery)
       .lean();
 
     const data = { tracks };
-
-    // Store in Redis
-    await setCache(cacheKey, data, 3600);
 
     return successResponse(res, {
       statusCode: 200,
@@ -349,20 +265,6 @@ export const getTrackById = asyncHandler(async (req, res) => {
     });
   }
 
-  // Redis Cache Key
-  const cacheKey = `tracks:single:${id}`;
-
-  // Check Cache
-  const cachedData = await getCache(cacheKey);
-
-  if (cachedData) {
-    return successResponse(res, {
-      statusCode: 200,
-      message: "Track fetched successfully.",
-      data: cachedData,
-    });
-  }
-
   // Find Track
   const track = await Track.findById(id).lean();
 
@@ -374,9 +276,6 @@ export const getTrackById = asyncHandler(async (req, res) => {
   }
 
   const data = { track };
-
-  // Store in Redis
-  await setCache(cacheKey, data, 3600);
 
   return successResponse(res, {
     statusCode: 200,
@@ -458,9 +357,6 @@ export const updateTrack = asyncHandler(async (req, res) => {
     });
   }
 
-  // Invalidate Cache
-  await invalidateTrackCache();
-
   return successResponse(res, {
     statusCode: 200,
     message: "Track updated successfully.",
@@ -493,9 +389,6 @@ export const deleteTrack = asyncHandler(async (req, res) => {
       message: "Track not found.",
     });
   }
-
-  // Invalidate Cache
-  await invalidateTrackCache();
 
   return successResponse(res, {
     statusCode: 200,

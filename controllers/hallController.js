@@ -10,12 +10,6 @@ import {
   errorResponse,
 } from "../utils/response.js";
 
-import {
-  getCache,
-  setCache,
-  deleteCacheByPattern,
-} from "../utils/redisCache.js";
-
 import buildFiltersQuery from "../utils/filters.js";
 
 import {
@@ -32,11 +26,6 @@ import buildSortQuery from "../utils/sort.js";
 
 // Validate MongoDB ObjectId
 const isValidId = (id) => mongoose.isValidObjectId(id);
-
-// Invalidate Hall Cache
-const invalidateHallCache = async () => {
-  await deleteCacheByPattern("halls:*");
-};
 
 // Allowed Fields
 const ALLOWED_FILTER_FIELDS = ["status"];
@@ -96,9 +85,6 @@ export const createHall = asyncHandler(async (req, res) => {
     ...(status !== undefined && { status }),
   });
 
-  // Invalidate Cache
-  await invalidateHallCache();
-
   return successResponse(res, {
     statusCode: 201,
     message: "Hall created successfully.",
@@ -140,25 +126,6 @@ export const getAllHalls = asyncHandler(async (req, res) => {
     ...searchQuery,
   };
 
-  // Redis Cache Key
-  const cacheKey = `halls:all:${JSON.stringify({
-    query: req.query,
-    page,
-    limit,
-  })}`;
-
-  // Check Cache
-  const cachedData = await getCache(cacheKey);
-
-  if (cachedData) {
-    return successResponse(res, {
-      statusCode: 200,
-      message: "Halls fetched successfully.",
-      data: cachedData.data,
-      pagination: cachedData.pagination,
-    });
-  }
-
   // Fetch Halls and Total Count
   const [halls, total] = await Promise.all([
     Hall.find(filterQuery)
@@ -178,13 +145,6 @@ export const getAllHalls = asyncHandler(async (req, res) => {
   );
 
   const data = { halls };
-
-  // Store in Redis
-  await setCache(
-    cacheKey,
-    { data, pagination },
-    3600
-  );
 
   return successResponse(res, {
     statusCode: 200,
@@ -222,25 +182,6 @@ export const getActiveHalls = asyncHandler(async (req, res) => {
     ...searchQuery,
   };
 
-  // Redis Cache Key
-  const cacheKey = `halls:active:${JSON.stringify({
-    query: req.query,
-    page,
-    limit,
-  })}`;
-
-  // Check Cache
-  const cachedData = await getCache(cacheKey);
-
-  if (cachedData) {
-    return successResponse(res, {
-      statusCode: 200,
-      message: "Active halls fetched successfully.",
-      data: cachedData.data,
-      pagination: cachedData.pagination,
-    });
-  }
-
   // Fetch Active Halls and Total Count
   const [halls, total] = await Promise.all([
     Hall.find(filterQuery)
@@ -260,13 +201,6 @@ export const getActiveHalls = asyncHandler(async (req, res) => {
   );
 
   const data = { halls };
-
-  // Store in Redis
-  await setCache(
-    cacheKey,
-    { data, pagination },
-    3600
-  );
 
   return successResponse(res, {
     statusCode: 200,
@@ -302,31 +236,12 @@ export const getAllActiveHallsWithoutPagination =
       ...searchQuery,
     };
 
-    // Redis Cache Key
-    const cacheKey = `halls:active:all:${JSON.stringify(
-      req.query
-    )}`;
-
-    // Check Cache
-    const cachedData = await getCache(cacheKey);
-
-    if (cachedData) {
-      return successResponse(res, {
-        statusCode: 200,
-        message: "Active halls fetched successfully.",
-        data: cachedData,
-      });
-    }
-
     // Fetch All Active Halls
     const halls = await Hall.find(filterQuery)
       .sort(sortQuery)
       .lean();
 
     const data = { halls };
-
-    // Store in Redis
-    await setCache(cacheKey, data, 3600);
 
     return successResponse(res, {
       statusCode: 200,
@@ -351,20 +266,6 @@ export const getHallById = asyncHandler(async (req, res) => {
     });
   }
 
-  // Redis Cache Key
-  const cacheKey = `halls:single:${id}`;
-
-  // Check Cache
-  const cachedData = await getCache(cacheKey);
-
-  if (cachedData) {
-    return successResponse(res, {
-      statusCode: 200,
-      message: "Hall fetched successfully.",
-      data: cachedData,
-    });
-  }
-
   // Find Hall
   const hall = await Hall.findById(id).lean();
 
@@ -376,9 +277,6 @@ export const getHallById = asyncHandler(async (req, res) => {
   }
 
   const data = { hall };
-
-  // Store in Redis
-  await setCache(cacheKey, data, 3600);
 
   return successResponse(res, {
     statusCode: 200,
@@ -460,9 +358,6 @@ export const updateHall = asyncHandler(async (req, res) => {
     });
   }
 
-  // Invalidate Cache
-  await invalidateHallCache();
-
   return successResponse(res, {
     statusCode: 200,
     message: "Hall updated successfully.",
@@ -495,9 +390,6 @@ export const deleteHall = asyncHandler(async (req, res) => {
       message: "Hall not found.",
     });
   }
-
-  // Invalidate Cache
-  await invalidateHallCache();
 
   return successResponse(res, {
     statusCode: 200,

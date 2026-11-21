@@ -11,12 +11,6 @@ import {
 } from "../utils/response.js";
 
 import {
-  getCache,
-  setCache,
-  deleteCacheByPattern,
-} from "../utils/redisCache.js";
-
-import {
   getPagination,
   buildPaginationMeta,
 } from "../utils/pagination.js";
@@ -30,11 +24,6 @@ import buildSortQuery from "../utils/sort.js";
 
 // Validate MongoDB ObjectId
 const isValidId = (id) => mongoose.isValidObjectId(id);
-
-// Invalidate Faculty Cache
-const invalidateFacultyCache = async () => {
-  await deleteCacheByPattern("faculties:*");
-};
 
 // Allowed Search Fields
 const ALLOWED_SEARCH_FIELDS = [
@@ -156,9 +145,6 @@ export const createFaculty = asyncHandler(async (req, res) => {
     throw error;
   }
 
-  // Invalidate Cache
-  await invalidateFacultyCache();
-
   return successResponse(res, {
     statusCode: 201,
     message: "Faculty created successfully.",
@@ -193,25 +179,6 @@ export const getAllFaculties = asyncHandler(async (req, res) => {
     ...searchQuery,
   };
 
-  // Redis Cache Key
-  const cacheKey = `faculties:all:${JSON.stringify({
-    query: req.query,
-    page,
-    limit,
-  })}`;
-
-  // Check Cache
-  const cachedData = await getCache(cacheKey);
-
-  if (cachedData) {
-    return successResponse(res, {
-      statusCode: 200,
-      message: "Faculties fetched successfully.",
-      data: cachedData.data,
-      pagination: cachedData.pagination,
-    });
-  }
-
   // Fetch Faculties and Total Count
   const [faculties, total] = await Promise.all([
     Faculty.find(filterQuery)
@@ -231,13 +198,6 @@ export const getAllFaculties = asyncHandler(async (req, res) => {
   );
 
   const data = { faculties };
-
-  // Store in Redis
-  await setCache(
-    cacheKey,
-    { data, pagination },
-    3600
-  );
 
   return successResponse(res, {
     statusCode: 200,
@@ -272,31 +232,12 @@ export const getAllFacultiesWithoutPagination =
       ...searchQuery,
     };
 
-    // Redis Cache Key
-    const cacheKey = `faculties:all:without-pagination:${JSON.stringify(
-      req.query
-    )}`;
-
-    // Check Cache
-    const cachedData = await getCache(cacheKey);
-
-    if (cachedData) {
-      return successResponse(res, {
-        statusCode: 200,
-        message: "Faculties fetched successfully.",
-        data: cachedData,
-      });
-    }
-
     // Fetch All Faculties
     const faculties = await Faculty.find(filterQuery)
       .sort(sortQuery)
       .lean();
 
     const data = { faculties };
-
-    // Store in Redis
-    await setCache(cacheKey, data, 3600);
 
     return successResponse(res, {
       statusCode: 200,
@@ -321,20 +262,6 @@ export const getFacultyById = asyncHandler(async (req, res) => {
     });
   }
 
-  // Redis Cache Key
-  const cacheKey = `faculties:single:${id}`;
-
-  // Check Cache
-  const cachedData = await getCache(cacheKey);
-
-  if (cachedData) {
-    return successResponse(res, {
-      statusCode: 200,
-      message: "Faculty fetched successfully.",
-      data: cachedData,
-    });
-  }
-
   // Find Faculty
   const faculty = await Faculty.findById(id).lean();
 
@@ -346,9 +273,6 @@ export const getFacultyById = asyncHandler(async (req, res) => {
   }
 
   const data = { faculty };
-
-  // Store in Redis
-  await setCache(cacheKey, data, 3600);
 
   return successResponse(res, {
     statusCode: 200,
@@ -485,9 +409,6 @@ export const updateFaculty = asyncHandler(async (req, res) => {
     });
   }
 
-  // Invalidate Cache
-  await invalidateFacultyCache();
-
   return successResponse(res, {
     statusCode: 200,
     message: "Faculty updated successfully.",
@@ -520,9 +441,6 @@ export const deleteFaculty = asyncHandler(async (req, res) => {
       message: "Faculty not found.",
     });
   }
-
-  // Invalidate Cache
-  await invalidateFacultyCache();
 
   return successResponse(res, {
     statusCode: 200,

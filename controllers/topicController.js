@@ -1,3 +1,4 @@
+
 import mongoose from "mongoose";
 
 import Topic from "../models/Topic.js";
@@ -10,12 +11,6 @@ import {
   successResponse,
   errorResponse,
 } from "../utils/response.js";
-
-import {
-  getCache,
-  setCache,
-  deleteCacheByPattern,
-} from "../utils/redisCache.js";
 
 import {
   getPagination,
@@ -31,11 +26,6 @@ import buildSortQuery from "../utils/sort.js";
 
 // Validate MongoDB ObjectId
 const isValidId = (id) => mongoose.isValidObjectId(id);
-
-// Invalidate Topic Cache
-const invalidateTopicCache = async () => {
-  await deleteCacheByPattern("topics:*");
-};
 
 // Allowed Search Fields
 const ALLOWED_SEARCH_FIELDS = [
@@ -306,9 +296,6 @@ export const createTopic = asyncHandler(async (req, res) => {
     expertPanelistId: expertPanelistValidation.data,
   });
 
-  // Invalidate Cache
-  await invalidateTopicCache();
-
   return successResponse(res, {
     statusCode: 201,
     message: "Topic created successfully.",
@@ -343,25 +330,6 @@ export const getAllTopics = asyncHandler(async (req, res) => {
     ...searchQuery,
   };
 
-  // Redis Cache Key
-  const cacheKey = `topics:all:${JSON.stringify({
-    query: req.query,
-    page,
-    limit,
-  })}`;
-
-  // Check Cache
-  const cachedData = await getCache(cacheKey);
-
-  if (cachedData) {
-    return successResponse(res, {
-      statusCode: 200,
-      message: "Topics fetched successfully.",
-      data: cachedData.data,
-      pagination: cachedData.pagination,
-    });
-  }
-
   // Fetch Topics and Total Count
   const [topics, total] = await Promise.all([
     Topic.find(filterQuery)
@@ -383,13 +351,6 @@ export const getAllTopics = asyncHandler(async (req, res) => {
   );
 
   const data = { topics };
-
-  // Store in Redis
-  await setCache(
-    cacheKey,
-    { data, pagination },
-    3600
-  );
 
   return successResponse(res, {
     statusCode: 200,
@@ -424,22 +385,6 @@ export const getAllTopicsWithoutPagination =
       ...searchQuery,
     };
 
-    // Redis Cache Key
-    const cacheKey = `topics:all:without-pagination:${JSON.stringify(
-      req.query
-    )}`;
-
-    // Check Cache
-    const cachedData = await getCache(cacheKey);
-
-    if (cachedData) {
-      return successResponse(res, {
-        statusCode: 200,
-        message: "Topics fetched successfully.",
-        data: cachedData,
-      });
-    }
-
     // Fetch All Topics
     const topics = await Topic.find(filterQuery)
       .populate(populateFacultyFields)
@@ -448,9 +393,6 @@ export const getAllTopicsWithoutPagination =
       .lean();
 
     const data = { topics };
-
-    // Store in Redis
-    await setCache(cacheKey, data, 3600);
 
     return successResponse(res, {
       statusCode: 200,
@@ -475,20 +417,6 @@ export const getTopicById = asyncHandler(async (req, res) => {
     });
   }
 
-  // Redis Cache Key
-  const cacheKey = `topics:single:${id}`;
-
-  // Check Cache
-  const cachedData = await getCache(cacheKey);
-
-  if (cachedData) {
-    return successResponse(res, {
-      statusCode: 200,
-      message: "Topic fetched successfully.",
-      data: cachedData,
-    });
-  }
-
   // Find Topic and Populate References
   const topic = await Topic.findById(id)
     .populate(populateFacultyFields)
@@ -503,9 +431,6 @@ export const getTopicById = asyncHandler(async (req, res) => {
   }
 
   const data = { topic };
-
-  // Store in Redis
-  await setCache(cacheKey, data, 3600);
 
   return successResponse(res, {
     statusCode: 200,
@@ -699,9 +624,6 @@ export const updateTopic = asyncHandler(async (req, res) => {
     });
   }
 
-  // Invalidate Cache
-  await invalidateTopicCache();
-
   return successResponse(res, {
     statusCode: 200,
     message: "Topic updated successfully.",
@@ -734,9 +656,6 @@ export const deleteTopic = asyncHandler(async (req, res) => {
       message: "Topic not found.",
     });
   }
-
-  // Invalidate Cache
-  await invalidateTopicCache();
 
   return successResponse(res, {
     statusCode: 200,

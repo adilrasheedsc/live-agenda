@@ -1,3 +1,4 @@
+
 import mongoose from "mongoose";
 
 import Session from "../models/Session.js";
@@ -9,12 +10,6 @@ import asyncHandler from "../utils/asyncHandler.js";
 
 import { successResponse, errorResponse } from "../utils/response.js";
 
-import {
-  getCache,
-  setCache,
-  deleteCacheByPattern,
-} from "../utils/redisCache.js";
-
 import { getPagination, buildPaginationMeta } from "../utils/pagination.js";
 
 import buildSearchQuery from "../utils/search.js";
@@ -25,10 +20,6 @@ import buildSortQuery from "../utils/sort.js";
 // ==========================================
 
 const isValidId = (id) => mongoose.isValidObjectId(id);
-
-const invalidateSessionCache = async () => {
-  await deleteCacheByPattern("sessions:*");
-};
 
 // Allowed Search Fields
 const ALLOWED_SEARCH_FIELDS = ["sessionName", "startTime", "endTime"];
@@ -284,9 +275,6 @@ export const createSession = asyncHandler(async (req, res) => {
     chairperson: chairpersonValidation.data,
   });
 
-  // Invalidate Cache
-  await invalidateSessionCache();
-
   return successResponse(res, {
     statusCode: 201,
     message: "Session created successfully.",
@@ -310,23 +298,6 @@ export const getAllSessions = asyncHandler(async (req, res) => {
     ...searchQuery,
   };
 
-  const cacheKey = `sessions:all:${JSON.stringify({
-    query: req.query,
-    page,
-    limit,
-  })}`;
-
-  const cachedData = await getCache(cacheKey);
-
-  if (cachedData) {
-    return successResponse(res, {
-      statusCode: 200,
-      message: "Sessions fetched successfully.",
-      data: cachedData.data,
-      pagination: cachedData.pagination,
-    });
-  }
-
   const [sessions, total] = await Promise.all([
     Session.find(filterQuery)
       .populate(populateSessionFields)
@@ -341,8 +312,6 @@ export const getAllSessions = asyncHandler(async (req, res) => {
   const pagination = buildPaginationMeta(total, page, limit);
 
   const data = { sessions };
-
-  await setCache(cacheKey, { data, pagination }, 3600);
 
   return successResponse(res, {
     statusCode: 200,
@@ -367,28 +336,12 @@ export const getAllSessionsWithoutPagination = asyncHandler(
       ...searchQuery,
     };
 
-    const cacheKey = `sessions:all:without-pagination:${JSON.stringify(
-      req.query,
-    )}`;
-
-    const cachedData = await getCache(cacheKey);
-
-    if (cachedData) {
-      return successResponse(res, {
-        statusCode: 200,
-        message: "Sessions fetched successfully.",
-        data: cachedData,
-      });
-    }
-
     const sessions = await Session.find(filterQuery)
       .populate(populateSessionFields)
       .sort(sortQuery)
       .lean();
 
     const data = { sessions };
-
-    await setCache(cacheKey, data, 3600);
 
     return successResponse(res, {
       statusCode: 200,
@@ -413,18 +366,6 @@ export const getSessionById = asyncHandler(async (req, res) => {
     });
   }
 
-  const cacheKey = `sessions:single:${id}`;
-
-  const cachedData = await getCache(cacheKey);
-
-  if (cachedData) {
-    return successResponse(res, {
-      statusCode: 200,
-      message: "Session fetched successfully.",
-      data: cachedData,
-    });
-  }
-
   const session = await Session.findById(id)
     .populate(populateSessionFields)
     .lean();
@@ -437,8 +378,6 @@ export const getSessionById = asyncHandler(async (req, res) => {
   }
 
   const data = { session };
-
-  await setCache(cacheKey, data, 3600);
 
   return successResponse(res, {
     statusCode: 200,
@@ -587,8 +526,6 @@ export const updateSession = asyncHandler(async (req, res) => {
     });
   }
 
-  await invalidateSessionCache();
-
   return successResponse(res, {
     statusCode: 200,
     message: "Session updated successfully.",
@@ -619,8 +556,6 @@ export const deleteSession = asyncHandler(async (req, res) => {
       message: "Session not found.",
     });
   }
-
-  await invalidateSessionCache();
 
   return successResponse(res, {
     statusCode: 200,

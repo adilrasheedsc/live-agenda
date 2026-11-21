@@ -31,4 +31,3 @@ const Hall =
 export default Hall;
 
 
-// Testing
